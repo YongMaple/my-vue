@@ -1,0 +1,33 @@
+<div id="app">
+  {{foo}}
+</div>
+<script>
+  function defineReactive(obj, key, val) {
+    Object.defineProperty(obj, key, {
+      get() {
+        console.log(`get ${key}:${val}`)
+        return val
+      },
+      set(newVal) {
+        if (newVal !== val) {
+          console.log(`set ${key}:${newVal}`)
+          // 函数内部有一个函数，并把值暴露出去，形成了闭包
+          val = newVal
+          update()
+        }
+      },
+    })
+  }
+
+  function update() {
+    // app:简写 相当于document.getElementById('app')
+    app.innerText = obj.foo
+  }
+
+  const obj = {}
+  defineReactive(obj, 'foo', 'foo')
+
+  setInterval(() => {
+    obj.foo = new Date().toLocaleTimeString()
+  }, 1000)
+</script>
