@@ -1,4 +1,20 @@
-// 数据响应式
+// 数组响应式
+// 1. 替换数组原型中7个方法
+const orginalProto = Array.prototype
+// 备份，修改此备份
+const arrayProto = Object.create(orginalProto)
+
+;['push', 'pop', 'shift', 'unshift', 'reverse', 'sort', 'splice'].forEach(
+  (method) => {
+    arrayProto[method] = function () {
+      // 原始操作
+      orginalProto[method].apply(this, arguments)
+      // 覆盖操作：通知更新
+      console.log(`数组执行：${method}操作`)
+    }
+  }
+)
+// 对象响应式
 function defineReactive(obj, key, val) {
   // 递归
   observe(val)
@@ -43,7 +59,13 @@ class Observer {
   // 核心功能：根据传入对象的类型做不同的相应处理
   constructor(obj) {
     if (Array.isArray(obj)) {
-      // TODO: 数组处理
+      // 数组处理
+      // 覆盖原型，替换7个变更操作
+      obj.__proto__ = arrayProto
+      // 对数组内部元素执行响应化
+      Object.keys(obj).forEach((key) => {
+        observe(obj[i])
+      })
     } else {
       // 对象响应式
       this.walk(obj)
@@ -129,7 +151,36 @@ class Compile {
         // 如果存在这个指令对应的函数就执行，比如v-text就执行text()
         this[directive] && this[directive](node, expression)
       }
+      // 判断事件
+      if (this.isEvent(attrName)) {
+        const event = attrName.substring(1)
+        this.eventHandler(node, expression, event)
+      }
     })
+  }
+
+  // v-model
+  model(node, expression) {
+    // update方法只完成赋值和更新
+    this.update(node, expression, 'model')
+    // 事件监听
+    node.addEventListener('input', (e) => {
+      // 将新的值赋值给数据
+      this.$vm[expression] = e.target.value
+    })
+  }
+  modelUpdater(node, val) {
+    // 给表单元素赋值
+    node.value = val
+  }
+  eventHandler(node, expression, event) {
+    const fn =
+      this.$vm.$options.methods && this.$vm.$options.methods[expression]
+    node.addEventListener(event, fn.bind(this.$vm))
+  }
+  // 判断事件
+  isEvent(attrName) {
+    return attrName.startsWith('@')
   }
   // 判断指令
   isDirective(attrName) {
@@ -142,7 +193,7 @@ class Compile {
 
   textUpdater(node, val) {
     node.textContent = val
-  }
+  }›
   // v-html
   html(node, expression) {
     this.update(node, expression, 'html')
