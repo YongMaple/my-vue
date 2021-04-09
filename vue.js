@@ -2,9 +2,17 @@
 function defineReactive(obj, key, val) {
   // 递归
   observe(val)
+
+  // 创建一个对应的Dep实例
+  const dep = new Dep() // 这里也是闭包，dep和key是一对一的对应关系
+
   Object.defineProperty(obj, key, {
     get() {
       console.log(`get ${key}:${val}`)
+
+      // 依赖收集
+      Dep.target && dep.addDep(Dep.target)
+
       return val
     },
     set(newVal) {
@@ -13,6 +21,9 @@ function defineReactive(obj, key, val) {
         console.log(`set ${key}:${newVal}`)
         // 函数内部有一个函数，并把值暴露出去，形成了闭包
         val = newVal
+        // update()
+        // watchers.forEach((w) => w.update())
+        dep.notify()
       }
     },
   })
@@ -90,19 +101,19 @@ class Compile {
     return node.nodeType === 1
   }
   // 插值判断
-  isInterpolation(node) { 
+  isInterpolation(node) {
     // 正则通过()分组，把{{}}中的内容放入RegExp中的$1
     return node.nodeType === 3 && /\{\{(.*)\}\}/.test(node.textContent)
   }
   // 解析插值文本
   compileText(node) {
-    node.textContent = this.$vm[RegExp.$1]
+    this.update(node, RegExp.$1, 'text')
   }
   // 编译元素
   compileElement(node) {
     // 遍历所有属性：检查是否存在指令和事件
     const attrs = node.attributes
-    Array.from(attrs).forEach(attr => {
+    Array.from(attrs).forEach((attr) => {
       console.log(attr)
       // 例如：v-text="counter"
       // attrName就是v-text
@@ -126,10 +137,68 @@ class Compile {
   }
   // v-text
   text(node, expression) {
-    node.textContent = this.$vm[expression]
+    this.update(node, expression, 'text')
+  }
+
+  textUpdater(node, val) {
+    node.textContent = val
+  }
+  // v-html
+  html(node, expression) {
+    this.update(node, expression, 'html')
+  }
+
+  htmlUpdater(node, val) {
+    node.innerHTML = val
+  }
+
+  update(node, expression, directive) {
+    // 在解析指令时，不光要给它初始化，还要给它做更新函数的创建
+    // 执行directive对应的实操函数
+    const fn = this[directive + 'Updater']
+    fn && fn(node, this.$vm[expression])
+
+    // 创建Watcher
+    new Watcher(this.$vm, expression, function (val) {
+      // 形成闭包
+      fn && fn(node, val)
+    })
   }
 }
 
+// const watchers = []
+// 更新执行者Watcher
+class Watcher {
+  constructor(vm, key, updater) {
+    this.vm = vm
+    this.key = key
+    this.updater = updater
+
+    // watchers.push(this)
+    // 保存Watcher引用，放到静态变量里
+    Dep.target = this
+    // 放进去立刻读取，触发defineReactive中的get
+    this.vm[this.key]
+    Dep.target = null
+  }
+
+  update() {
+    this.updater.call(this.vm, this.vm[this.key])
+  }
+}
+class Dep {
+  constructor() {
+    this.deps = []
+  }
+
+  addDep(dep) {
+    this.deps.push(dep)
+  }
+
+  notify() {
+    this.deps.forEach((w) => w.update())
+  }
+}
 class Vue {
   constructor(options) {
     this.$options = options
